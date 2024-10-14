@@ -4,12 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/initia-labs/opinit-bots/types"
-
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	btypes "github.com/initia-labs/opinit-bots/node/broadcaster/types"
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
+	"github.com/initia-labs/opinit-bots/types"
 )
 
 func (h *Host) beginBlockHandler(_ context.Context, args nodetypes.BeginBlockArgs) error {

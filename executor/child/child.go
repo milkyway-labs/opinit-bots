@@ -4,18 +4,15 @@ import (
 	"context"
 	"time"
 
-	"go.uber.org/zap"
-
 	sdk "github.com/cosmos/cosmos-sdk/types"
-
 	opchildtypes "github.com/initia-labs/OPinit/x/opchild/types"
 	ophosttypes "github.com/initia-labs/OPinit/x/ophost/types"
+	"go.uber.org/zap"
 
 	btypes "github.com/initia-labs/opinit-bots/node/broadcaster/types"
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
-	"github.com/initia-labs/opinit-bots/types"
-
 	childprovider "github.com/initia-labs/opinit-bots/provider/child"
+	"github.com/initia-labs/opinit-bots/types"
 )
 
 type hostNode interface {
@@ -29,10 +26,15 @@ type hostNode interface {
 	GetMsgProposeOutput(uint64, uint64, int64, []byte) (sdk.Msg, error)
 }
 
+type monitorNode interface {
+	IsOurTurn() bool
+}
+
 type Child struct {
 	*childprovider.BaseChild
 
-	host hostNode
+	host    hostNode
+	monitor monitorNode
 
 	nextOutputTime        time.Time
 	finalizingBlockHeight int64
@@ -46,14 +48,21 @@ type Child struct {
 
 func NewChildV1(
 	cfg nodetypes.NodeConfig,
-	db types.DB, logger *zap.Logger, bech32Prefix string,
+	db types.DB, logger *zap.Logger, bech32Prefix, l2BridgeExecutor string,
 ) *Child {
 	return &Child{
-		BaseChild: childprovider.NewBaseChildV1(cfg, db, logger, bech32Prefix),
+		BaseChild: childprovider.NewBaseChildV1(cfg, db, logger, bech32Prefix, l2BridgeExecutor),
 	}
 }
 
-func (ch *Child) Initialize(ctx context.Context, processedHeight int64, startOutputIndex uint64, host hostNode, bridgeInfo opchildtypes.BridgeInfo) error {
+func (ch *Child) Initialize(
+	ctx context.Context,
+	processedHeight int64,
+	startOutputIndex uint64,
+	host hostNode,
+	monitor monitorNode,
+	bridgeInfo opchildtypes.BridgeInfo,
+) error {
 	l2Sequence, err := ch.BaseChild.Initialize(ctx, processedHeight, startOutputIndex, bridgeInfo)
 	if err != nil {
 		return err
@@ -66,6 +75,7 @@ func (ch *Child) Initialize(ctx context.Context, processedHeight int64, startOut
 	}
 
 	ch.host = host
+	ch.monitor = monitor
 	ch.registerHandlers()
 	return nil
 }

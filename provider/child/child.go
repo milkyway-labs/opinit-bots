@@ -3,16 +3,15 @@ package child
 import (
 	"context"
 
-	"go.uber.org/zap"
-
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/auth"
-
+	authz "github.com/cosmos/cosmos-sdk/x/authz/module"
 	"github.com/initia-labs/OPinit/x/opchild"
 	opchildtypes "github.com/initia-labs/OPinit/x/opchild/types"
 	ophosttypes "github.com/initia-labs/OPinit/x/ophost/types"
+	"go.uber.org/zap"
 
 	"github.com/initia-labs/opinit-bots/keys"
 	"github.com/initia-labs/opinit-bots/merkle"
@@ -28,7 +27,8 @@ type BaseChild struct {
 	node *node.Node
 	mk   *merkle.Merkle
 
-	bridgeInfo opchildtypes.BridgeInfo
+	bridgeInfo       opchildtypes.BridgeInfo
+	l2BridgeExecutor string
 
 	initializeTreeFn func(int64) (bool, error)
 
@@ -44,7 +44,7 @@ type BaseChild struct {
 
 func NewBaseChildV1(
 	cfg nodetypes.NodeConfig,
-	db types.DB, logger *zap.Logger, bech32Prefix string,
+	db types.DB, logger *zap.Logger, bech32Prefix, l2BridgeExecutor string,
 ) *BaseChild {
 	appCodec, txConfig, err := GetCodec(bech32Prefix)
 	if err != nil {
@@ -67,6 +67,8 @@ func NewBaseChildV1(
 		node: node,
 		mk:   mk,
 
+		l2BridgeExecutor: l2BridgeExecutor,
+
 		cfg:    cfg,
 		db:     db,
 		logger: logger,
@@ -85,6 +87,7 @@ func GetCodec(bech32Prefix string) (codec.Codec, client.TxConfig, error) {
 
 	return keys.CreateCodec([]keys.RegisterInterfaces{
 		auth.AppModuleBasic{}.RegisterInterfaces,
+		authz.AppModuleBasic{}.RegisterInterfaces,
 		opchild.AppModuleBasic{}.RegisterInterfaces,
 	})
 }

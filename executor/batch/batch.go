@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"go.uber.org/zap"
@@ -24,12 +25,17 @@ type hostNode interface {
 	QueryBatchInfos(context.Context, uint64) (*ophosttypes.QueryBatchInfosResponse, error)
 }
 
+type monitorNode interface {
+	IsOurTurn() bool
+}
+
 type BatchSubmitter struct {
 	version uint8
 
-	node *node.Node
-	host hostNode
-	da   executortypes.DANode
+	node    *node.Node
+	host    hostNode
+	monitor monitorNode
+	da      executortypes.DANode
 
 	bridgeInfo opchildtypes.BridgeInfo
 
@@ -96,12 +102,19 @@ func NewBatchSubmitterV1(
 	return ch
 }
 
-func (bs *BatchSubmitter) Initialize(ctx context.Context, processedHeight int64, host hostNode, bridgeInfo opchildtypes.BridgeInfo) error {
+func (bs *BatchSubmitter) Initialize(
+	ctx context.Context,
+	processedHeight int64,
+	host hostNode,
+	monitor monitorNode,
+	bridgeInfo opchildtypes.BridgeInfo,
+) error {
 	err := bs.node.Initialize(ctx, processedHeight)
 	if err != nil {
 		return err
 	}
 	bs.host = host
+	bs.monitor = monitor
 	bs.bridgeInfo = bridgeInfo
 
 	res, err := bs.host.QueryBatchInfos(ctx, bridgeInfo.BridgeId)
@@ -120,7 +133,7 @@ func (bs *BatchSubmitter) Initialize(ctx context.Context, processedHeight int64,
 	}
 
 	fileFlag := os.O_CREATE | os.O_RDWR | os.O_APPEND
-	bs.batchFile, err = os.OpenFile(bs.homePath+"/batch", fileFlag, 0666)
+	bs.batchFile, err = os.OpenFile(filepath.Join(bs.homePath, "batch"), fileFlag, 0666)
 	if err != nil {
 		return err
 	}

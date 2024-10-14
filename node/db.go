@@ -1,11 +1,14 @@
 package node
 
 import (
+	"errors"
+
+	"go.uber.org/zap"
+
 	dbtypes "github.com/initia-labs/opinit-bots/db/types"
 	btypes "github.com/initia-labs/opinit-bots/node/broadcaster/types"
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
 	"github.com/initia-labs/opinit-bots/types"
-	"go.uber.org/zap"
 )
 
 func (n *Node) SetSyncInfo(height int64) {
@@ -17,7 +20,7 @@ func (n *Node) SetSyncInfo(height int64) {
 
 func (n *Node) loadSyncInfo(processedHeight int64) error {
 	data, err := n.db.Get(nodetypes.LastProcessedBlockHeightKey)
-	if err == dbtypes.ErrNotFound {
+	if errors.Is(err, dbtypes.ErrNotFound) {
 		n.SetSyncInfo(processedHeight)
 		n.startHeightInitialized = true
 		n.logger.Info("initialize sync info", zap.Int64("start_height", processedHeight+1))

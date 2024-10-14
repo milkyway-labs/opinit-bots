@@ -3,10 +3,10 @@ package host
 import (
 	"errors"
 
-	ophosttypes "github.com/initia-labs/OPinit/x/ophost/types"
-	"github.com/initia-labs/opinit-bots/types"
-
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	ophosttypes "github.com/initia-labs/OPinit/x/ophost/types"
+
+	"github.com/initia-labs/opinit-bots/types"
 )
 
 func (b BaseHost) GetMsgProposeOutput(
@@ -24,7 +24,8 @@ func (b BaseHost) GetMsgProposeOutput(
 	}
 
 	msg := ophosttypes.NewMsgProposeOutput(
-		sender,
+		// The output submitter grants permission to the operator admin
+		b.bridgeInfo.BridgeConfig.Proposer,
 		bridgeId,
 		outputIndex,
 		types.MustInt64ToUint64(l2BlockNumber),
@@ -34,7 +35,11 @@ func (b BaseHost) GetMsgProposeOutput(
 	if err != nil {
 		return nil, err
 	}
-	return msg, nil
+	execMsg, err := types.NewMsgExec(sender, []sdk.Msg{msg})
+	if err != nil {
+		return nil, err
+	}
+	return execMsg, nil
 }
 
 func (b BaseHost) CreateBatchMsg(batchBytes []byte) (sdk.Msg, error) {

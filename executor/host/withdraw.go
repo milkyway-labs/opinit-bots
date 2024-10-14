@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 
+	"go.uber.org/zap"
+
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
 	hostprovider "github.com/initia-labs/opinit-bots/provider/host"
-	"go.uber.org/zap"
 )
 
 func (h *Host) proposeOutputHandler(_ context.Context, args nodetypes.EventHandlerArgs) error {

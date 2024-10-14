@@ -3,10 +3,10 @@ package child
 import (
 	"errors"
 
-	opchildtypes "github.com/initia-labs/OPinit/x/opchild/types"
-	"github.com/initia-labs/opinit-bots/types"
-
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	opchildtypes "github.com/initia-labs/OPinit/x/opchild/types"
+
+	"github.com/initia-labs/opinit-bots/types"
 )
 
 func (b BaseChild) GetMsgFinalizeTokenDeposit(
@@ -27,7 +27,7 @@ func (b BaseChild) GetMsgFinalizeTokenDeposit(
 	}
 
 	msg := opchildtypes.NewMsgFinalizeTokenDeposit(
-		sender,
+		b.l2BridgeExecutor,
 		from,
 		to,
 		coin,
@@ -40,7 +40,11 @@ func (b BaseChild) GetMsgFinalizeTokenDeposit(
 	if err != nil {
 		return nil, err
 	}
-	return msg, nil
+	execMsg, err := types.NewMsgExec(sender, []sdk.Msg{msg})
+	if err != nil {
+		return nil, err
+	}
+	return execMsg, nil
 }
 
 func (b BaseChild) GetMsgUpdateOracle(
@@ -56,7 +60,7 @@ func (b BaseChild) GetMsgUpdateOracle(
 	}
 
 	msg := opchildtypes.NewMsgUpdateOracle(
-		sender,
+		b.l2BridgeExecutor,
 		types.MustInt64ToUint64(height),
 		data,
 	)
@@ -64,5 +68,9 @@ func (b BaseChild) GetMsgUpdateOracle(
 	if err != nil {
 		return nil, err
 	}
-	return msg, nil
+	execMsg, err := types.NewMsgExec(sender, []sdk.Msg{msg})
+	if err != nil {
+		return nil, err
+	}
+	return execMsg, nil
 }

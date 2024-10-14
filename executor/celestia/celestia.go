@@ -5,17 +5,15 @@ import (
 	"crypto/sha256"
 	"errors"
 
-	"go.uber.org/zap"
-
+	"github.com/celestiaorg/go-square/v2/inclusion"
+	sh "github.com/celestiaorg/go-square/v2/share"
 	"github.com/cometbft/cometbft/crypto/merkle"
-
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/auth"
-
-	inclusion "github.com/celestiaorg/go-square/v2/inclusion"
-	sh "github.com/celestiaorg/go-square/v2/share"
+	authz "github.com/cosmos/cosmos-sdk/x/authz/module"
+	"go.uber.org/zap"
 
 	executortypes "github.com/initia-labs/opinit-bots/executor/types"
 	"github.com/initia-labs/opinit-bots/keys"
@@ -52,7 +50,7 @@ type Celestia struct {
 
 func NewDACelestia(
 	version uint8, cfg nodetypes.NodeConfig,
-	db types.DB, logger *zap.Logger, bech32Prefix, batchSubmitter string,
+	db types.DB, logger *zap.Logger, bech32Prefix string,
 ) *Celestia {
 	c := &Celestia{
 		version: version,
@@ -71,7 +69,6 @@ func NewDACelestia(
 	}
 
 	if cfg.BroadcasterConfig != nil {
-		cfg.BroadcasterConfig.KeyringConfig.Address = batchSubmitter
 		cfg.BroadcasterConfig.BuildTxWithMessages = c.BuildTxWithMessages
 		cfg.BroadcasterConfig.PendingTxToProcessedMsgs = c.PendingTxToProcessedMsgs
 	}
@@ -91,6 +88,7 @@ func createCodec(bech32Prefix string) (codec.Codec, client.TxConfig, error) {
 
 	return keys.CreateCodec([]keys.RegisterInterfaces{
 		auth.AppModuleBasic{}.RegisterInterfaces,
+		authz.AppModuleBasic{}.RegisterInterfaces,
 		celestiatypes.RegisterInterfaces,
 	})
 }

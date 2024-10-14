@@ -7,10 +7,11 @@ import (
 
 	abcitypes "github.com/cometbft/cometbft/abci/types"
 	rpccoretypes "github.com/cometbft/cometbft/rpc/core/types"
-	nodetypes "github.com/initia-labs/opinit-bots/node/types"
-	"github.com/initia-labs/opinit-bots/types"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+
+	nodetypes "github.com/initia-labs/opinit-bots/node/types"
+	"github.com/initia-labs/opinit-bots/types"
 )
 
 // blockProcessLooper fetches new blocks and processes them
@@ -170,10 +171,12 @@ func (n *Node) handleNewBlock(ctx context.Context, block *rpccoretypes.ResultBlo
 		}
 	}
 
-	for eventIndex, event := range blockResult.FinalizeBlockEvents {
-		err := n.handleEvent(ctx, block.Block.Height, block.Block.Time, latestChainHeight, event)
-		if err != nil {
-			return fmt.Errorf("failed to handle event: finalize block, event_index: %d; %w", eventIndex, err)
+	if len(n.eventHandlers) != 0 {
+		for eventIndex, event := range blockResult.FinalizeBlockEvents {
+			err := n.handleEvent(ctx, block.Block.Height, block.Block.Time, latestChainHeight, event)
+			if err != nil {
+				return fmt.Errorf("failed to handle event: finalize block, event_index: %d; %w", eventIndex, err)
+			}
 		}
 	}
 

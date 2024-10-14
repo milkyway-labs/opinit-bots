@@ -43,22 +43,39 @@ type Config struct {
 	L2Node NodeConfig `json:"l2_node"`
 	// DANode is the configuration for the data availability node.
 	DANode NodeConfig `json:"da_node"`
+	// MilkyWayNode is the configuration for the MilkyWay node.
+	MilkyWayNode NodeConfig `json:"milkyway_node"`
+
+	// OperatorID is the MilkyWay restaking operator ID of this bot.
+	OperatorID uint32 `json:"operator_id"`
+	// OperatorAdmin is the key name in the keyring for operator admin on MilkyWay.
+	OperatorAdmin string `json:"operator_admin"`
 
 	// OutputSubmitter is the key name in the keyring for the output submitter,
 	// which is used to relay the output transaction from l2 to l1.
+	// The L2's output submitter must have granted the output submission permission
+	// to this account.
 	//
 	// If you don't want to use the output submitter feature, you can leave it empty.
 	OutputSubmitter string `json:"output_submitter"`
 
+	// BatchSubmitter is the key name in the keyring for the batch submitter,
+	// which is used to batch submission from l2 to a DA layer.
+	//
+	// If you don't want to use the batch submitter feature, you can leave it empty.
+	BatchSubmitter string `json:"batch_submitter"`
+
 	// BridgeExecutor is the key name in the keyring for the bridge executor,
 	// which is used to relay initiate token bridge transaction from l1 to l2.
+	// The L2's bridge executor must have granted the correct permissions
+	// to this account.
 	//
 	// If you don't want to use the bridge executor feature, you can leave it empty.
 	BridgeExecutor string `json:"bridge_executor"`
 
-	// EnableBatchSubmitter is the flag to enable the batch submitter.
-	// If it is false, the batch submitter will not be started.
-	EnableBatchSubmitter bool `json:"enable_batch_submitter"`
+	// L2BridgeExecutor is the address of the L2 bridge executor,
+	// which is used to relay initiate token bridge transaction from l1 to l2.
+	L2BridgeExecutor string `json:"l2_bridge_executor"`
 
 	// MaxChunks is the maximum number of chunks in a batch.
 	MaxChunks int64 `json:"max_chunks"`
@@ -75,6 +92,12 @@ type Config struct {
 	// BatchStartHeight is the height to start the batch. If it is 0, it will start from the latest height.
 	// If the latest height stored in the db is not 0, this config is ignored.
 	BatchStartHeight int64 `json:"batch_start_height"`
+	// MilkyWayStartHeight is the height to start the MilkyWay node. If it is 0, it
+	// will start from the latest height.
+	MilkyWayStartHeight int64 `json:"milkyway_start_height"`
+
+	// MonitorContract is the contract address to monitor.
+	MonitorContract string `json:"monitor_contract"`
 }
 
 func DefaultConfig() *Config {
@@ -109,9 +132,14 @@ func DefaultConfig() *Config {
 			TxTimeout:     60,
 		},
 
-		OutputSubmitter:      "",
-		BridgeExecutor:       "",
-		EnableBatchSubmitter: true,
+		MilkyWayNode: NodeConfig{
+			ChainID:       "testnet-milkyway-1",
+			Bech32Prefix:  "init",
+			RPCAddress:    "tcp://localhost:28657",
+			GasPrice:      "",
+			GasAdjustment: 1.5,
+			TxTimeout:     60,
+		},
 
 		MaxChunks:         5000,
 		MaxChunkSize:      300000,  // 300KB
@@ -147,6 +175,10 @@ func (cfg Config) Validate() error {
 		return err
 	}
 
+	if err := cfg.MilkyWayNode.Validate(); err != nil {
+		return err
+	}
+
 	if cfg.MaxChunks <= 0 {
 		return errors.New("max chunks must be greater than 0")
 	}
@@ -165,6 +197,18 @@ func (cfg Config) Validate() error {
 
 	if cfg.BatchStartHeight < 0 {
 		return errors.New("batch start height must be greater than or equal to 0")
+	}
+
+	if cfg.MilkyWayStartHeight < 0 {
+		return errors.New("milkyway start height must be greater than or equal to 0")
+	}
+
+	if cfg.BridgeExecutor != "" && cfg.L2BridgeExecutor == "" {
+		return errors.New("l2 bridge executor must be set when bridge executor is set")
+	}
+
+	if cfg.MonitorContract == "" {
+		return errors.New("monitor contract must be set")
 	}
 	return nil
 }
@@ -221,7 +265,7 @@ func (cfg Config) DANodeConfig(homePath string) nodetypes.NodeConfig {
 		ProcessType: nodetypes.PROCESS_TYPE_ONLY_BROADCAST,
 	}
 
-	if cfg.EnableBatchSubmitter {
+	if cfg.BatchSubmitter != "" {
 		nc.BroadcasterConfig = &btypes.BroadcasterConfig{
 			ChainID:       cfg.DANode.ChainID,
 			GasPrice:      cfg.DANode.GasPrice,
@@ -229,6 +273,7 @@ func (cfg Config) DANodeConfig(homePath string) nodetypes.NodeConfig {
 			Bech32Prefix:  cfg.DANode.Bech32Prefix,
 			TxTimeout:     time.Duration(cfg.DANode.TxTimeout) * time.Second,
 			KeyringConfig: btypes.KeyringConfig{
+				Name:     cfg.BatchSubmitter,
 				HomePath: homePath,
 			},
 		}
@@ -242,6 +287,28 @@ func (cfg Config) BatchConfig() BatchConfig {
 		MaxChunkSize:      cfg.MaxChunkSize,
 		MaxSubmissionTime: cfg.MaxSubmissionTime,
 	}
+}
+
+func (cfg Config) MilkyWayNodeConfig(homePath string) nodetypes.NodeConfig {
+	nc := nodetypes.NodeConfig{
+		RPC:         cfg.MilkyWayNode.RPCAddress,
+		ProcessType: nodetypes.PROCESS_TYPE_ONLY_BROADCAST,
+	}
+
+	if cfg.OperatorAdmin != "" {
+		nc.BroadcasterConfig = &btypes.BroadcasterConfig{
+			ChainID:       cfg.MilkyWayNode.ChainID,
+			GasPrice:      cfg.MilkyWayNode.GasPrice,
+			GasAdjustment: cfg.MilkyWayNode.GasAdjustment,
+			TxTimeout:     time.Duration(cfg.MilkyWayNode.TxTimeout) * time.Second,
+			Bech32Prefix:  cfg.MilkyWayNode.Bech32Prefix,
+			KeyringConfig: btypes.KeyringConfig{
+				Name:     cfg.OperatorAdmin,
+				HomePath: homePath,
+			},
+		}
+	}
+	return nc
 }
 
 type BatchConfig struct {

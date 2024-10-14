@@ -2,6 +2,7 @@ package batch
 
 import (
 	"encoding/json"
+	"errors"
 
 	dbtypes "github.com/initia-labs/opinit-bots/db/types"
 	"github.com/initia-labs/opinit-bots/types"
@@ -12,7 +13,7 @@ var LocalBatchInfoKey = []byte("local_batch_info")
 func (bs *BatchSubmitter) loadLocalBatchInfo() error {
 	val, err := bs.db.Get(LocalBatchInfoKey)
 	if err != nil {
-		if err == dbtypes.ErrNotFound {
+		if errors.Is(err, dbtypes.ErrNotFound) {
 			return nil
 		}
 		return err

@@ -3,19 +3,16 @@ package host
 import (
 	"context"
 
-	"go.uber.org/zap"
-
 	sdk "github.com/cosmos/cosmos-sdk/types"
-
 	opchildtypes "github.com/initia-labs/OPinit/x/opchild/types"
 	ophosttypes "github.com/initia-labs/OPinit/x/ophost/types"
+	"go.uber.org/zap"
 
 	executortypes "github.com/initia-labs/opinit-bots/executor/types"
 	btypes "github.com/initia-labs/opinit-bots/node/broadcaster/types"
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
-	"github.com/initia-labs/opinit-bots/types"
-
 	hostprovider "github.com/initia-labs/opinit-bots/provider/host"
+	"github.com/initia-labs/opinit-bots/types"
 )
 
 type childNode interface {
@@ -33,13 +30,18 @@ type batchNode interface {
 	UpdateBatchInfo(string, string, uint64, int64)
 }
 
+type monitorNode interface {
+	IsOurTurn() bool
+}
+
 var _ executortypes.DANode = &Host{}
 
 type Host struct {
 	*hostprovider.BaseHost
 
-	child childNode
-	batch batchNode
+	child   childNode
+	batch   batchNode
+	monitor monitorNode
 
 	initialL1Sequence uint64
 
@@ -50,24 +52,27 @@ type Host struct {
 
 func NewHostV1(
 	cfg nodetypes.NodeConfig,
-	db types.DB, logger *zap.Logger, bech32Prefix, batchSubmitter string,
+	db types.DB, logger *zap.Logger, bech32Prefix string,
 ) *Host {
-	if cfg.BroadcasterConfig != nil && batchSubmitter != "" {
-		cfg.BroadcasterConfig.Bech32Prefix = bech32Prefix
-		cfg.BroadcasterConfig.KeyringConfig.Address = batchSubmitter
-	}
 	return &Host{
 		BaseHost: hostprovider.NewBaseHostV1(cfg, db, logger, bech32Prefix),
 	}
 }
 
-func (h *Host) Initialize(ctx context.Context, processedHeight int64, child childNode, batch batchNode, bridgeInfo opchildtypes.BridgeInfo) error {
+func (h *Host) Initialize(
+	ctx context.Context,
+	processedHeight int64,
+	child childNode,
+	batch batchNode,
+	monitor monitorNode,
+	bridgeInfo opchildtypes.BridgeInfo) error {
 	err := h.BaseHost.Initialize(ctx, processedHeight, bridgeInfo)
 	if err != nil {
 		return err
 	}
 	h.child = child
 	h.batch = batch
+	h.monitor = monitor
 	h.initialL1Sequence, err = h.child.QueryNextL1Sequence(ctx, 0)
 	if err != nil {
 		return err

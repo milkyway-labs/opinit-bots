@@ -2,31 +2,32 @@ package host
 
 import (
 	"context"
-	"errors"
+
+	"go.uber.org/zap"
 
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
 	hostprovider "github.com/initia-labs/opinit-bots/provider/host"
-	"github.com/initia-labs/opinit-bots/types"
-	"go.uber.org/zap"
 )
 
 func (h *Host) recordBatchHandler(_ context.Context, args nodetypes.EventHandlerArgs) error {
-	hostAddress, err := h.GetAddressStr()
-	if err != nil {
-		if errors.Is(err, types.ErrKeyNotSet) {
-			return nil
-		}
-		return nil
-	}
+	// We don't check hostAddress here since different operators can submit
+	// batches.
+	//hostAddress, err := h.GetAddressStr()
+	//if err != nil {
+	//	if errors.Is(err, types.ErrKeyNotSet) {
+	//		return nil
+	//	}
+	//	return nil
+	//}
 
 	submitter, err := hostprovider.ParseMsgRecordBatch(args.EventAttributes)
 	if err != nil {
 		return err
 	}
 
-	if submitter != hostAddress {
-		return nil
-	}
+	//if submitter != hostAddress {
+	//	return nil
+	//}
 	h.Logger().Info("record batch",
 		zap.String("submitter", submitter),
 	)

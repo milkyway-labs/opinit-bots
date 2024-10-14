@@ -60,12 +60,13 @@ Currently supported bots:
 			if err != nil {
 				return err
 			}
+			defer bot.Close()
 			return bot.Start(ctx)
 		},
 	}
 
 	cmd = configFlag(ctx.v, cmd)
-	cmd.Flags().Duration(flagPollingInterval, 100*time.Millisecond, "Polling interval in milliseconds")
+	cmd.Flags().Duration(flagPollingInterval, time.Second, "Polling interval in milliseconds")
 	return cmd
 }
 

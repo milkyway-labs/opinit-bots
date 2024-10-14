@@ -12,7 +12,7 @@ import (
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
 	"github.com/initia-labs/opinit-bots/types"
 
-	eventhandler "github.com/initia-labs/opinit-bots/challenger/eventhandler"
+	"github.com/initia-labs/opinit-bots/challenger/eventhandler"
 	challengertypes "github.com/initia-labs/opinit-bots/challenger/types"
 	childprovider "github.com/initia-labs/opinit-bots/provider/child"
 )
@@ -50,7 +50,7 @@ func NewChildV1(
 	db types.DB, logger *zap.Logger, bech32Prefix string,
 ) *Child {
 	return &Child{
-		BaseChild:    childprovider.NewBaseChildV1(cfg, db, logger, bech32Prefix),
+		BaseChild:    childprovider.NewBaseChildV1(cfg, db, logger, bech32Prefix, ""),
 		eventHandler: eventhandler.NewChallengeEventHandler(db, logger),
 		eventQueue:   make([]challengertypes.ChallengeEvent, 0),
 	}

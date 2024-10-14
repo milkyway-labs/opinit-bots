@@ -5,13 +5,18 @@ import (
 	"errors"
 
 	"cosmossdk.io/math"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
 	hostprovider "github.com/initia-labs/opinit-bots/provider/host"
-
-	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 func (h *Host) initiateDepositHandler(_ context.Context, args nodetypes.EventHandlerArgs) error {
+	//if !h.monitor.IsOurTurn() {
+	//	h.Logger().Info("it's not our turn to finalize deposit, skipping")
+	//	return nil
+	//}
+
 	bridgeId, l1Sequence, from, to, l1Denom, l2Denom, amount, data, err := hostprovider.ParseMsgInitiateDeposit(args.EventAttributes)
 	if err != nil {
 		return err

@@ -7,16 +7,12 @@ import (
 	"io"
 	"time"
 
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/gogoproto/proto"
+	ophosttypes "github.com/initia-labs/OPinit/x/ophost/types"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-
-	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
-
-	"github.com/cosmos/gogoproto/proto"
-
-	sdk "github.com/cosmos/cosmos-sdk/types"
-
-	ophosttypes "github.com/initia-labs/OPinit/x/ophost/types"
 
 	executortypes "github.com/initia-labs/opinit-bots/executor/types"
 	btypes "github.com/initia-labs/opinit-bots/node/broadcaster/types"
@@ -53,6 +49,11 @@ func (bs *BatchSubmitter) rawBlockHandler(ctx context.Context, args nodetypes.Ra
 	if err != nil {
 		return errors.Wrap(err, "failed to check batch")
 	}
+
+	//if !bs.monitor.IsOurTurn() && len(bs.processedMsgs) > 0 {
+	//	bs.logger.Info("it's not our turn to submit batch, skipping")
+	//	bs.processedMsgs = bs.processedMsgs[:0]
+	//}
 
 	// store the processed state into db with batch operation
 	batchKVs := make([]types.RawKV, 0)

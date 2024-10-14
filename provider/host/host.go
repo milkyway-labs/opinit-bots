@@ -3,16 +3,15 @@ package host
 import (
 	"context"
 
-	"go.uber.org/zap"
-
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/auth"
-
+	authz "github.com/cosmos/cosmos-sdk/x/authz/module"
 	opchildtypes "github.com/initia-labs/OPinit/x/opchild/types"
 	"github.com/initia-labs/OPinit/x/ophost"
 	ophosttypes "github.com/initia-labs/OPinit/x/ophost/types"
+	"go.uber.org/zap"
 
 	"github.com/initia-labs/opinit-bots/keys"
 	"github.com/initia-labs/opinit-bots/node"
@@ -75,6 +74,7 @@ func GetCodec(bech32Prefix string) (codec.Codec, client.TxConfig, error) {
 
 	return keys.CreateCodec([]keys.RegisterInterfaces{
 		auth.AppModuleBasic{}.RegisterInterfaces,
+		authz.AppModuleBasic{}.RegisterInterfaces,
 		ophost.AppModuleBasic{}.RegisterInterfaces,
 	})
 }

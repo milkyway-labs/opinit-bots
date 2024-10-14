@@ -1,10 +1,11 @@
 package types
 
 const (
-	HostName   = "host"
-	ChildName  = "child"
-	BatchName  = "batch"
-	MerkleName = "merkle"
+	HostName    = "host"
+	ChildName   = "child"
+	BatchName   = "batch"
+	MerkleName  = "merkle"
+	MonitorName = "monitor"
 
 	DAHostName     = "da_host"
 	DACelestiaName = "da_celestia"

@@ -4,18 +4,19 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	ophosttypes "github.com/initia-labs/OPinit/x/ophost/types"
-	executortypes "github.com/initia-labs/opinit-bots/executor/types"
-	"github.com/initia-labs/opinit-bots/types"
 	"go.uber.org/zap"
 
-	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	dbtypes "github.com/initia-labs/opinit-bots/db/types"
+	executortypes "github.com/initia-labs/opinit-bots/executor/types"
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
 	childprovider "github.com/initia-labs/opinit-bots/provider/child"
+	"github.com/initia-labs/opinit-bots/types"
 )
 
 func (ch *Child) initiateWithdrawalHandler(_ context.Context, args nodetypes.EventHandlerArgs) error {
@@ -67,8 +68,8 @@ func (ch *Child) prepareTree(blockHeight int64) error {
 	}
 
 	err := ch.Merkle().LoadWorkingTree(types.MustInt64ToUint64(blockHeight) - 1)
-	if err == dbtypes.ErrNotFound {
-		// must not happened
+	if errors.Is(err, dbtypes.ErrNotFound) {
+		// must not happen
 		panic(fmt.Errorf("working tree not found at height: %d, current: %d", blockHeight-1, blockHeight))
 	} else if err != nil {
 		return err
@@ -104,7 +105,7 @@ func (ch *Child) prepareOutput(ctx context.Context) error {
 	return nil
 }
 
-func (ch *Child) handleTree(blockHeight int64, latestHeight int64, blockId []byte, blockHeader cmtproto.Header) (kvs []types.RawKV, storageRoot []byte, err error) {
+func (ch *Child) handleTree(blockHeight int64, latestHeight int64, blockId []byte, blockHeader cmtproto.Header, isOurTurn bool) (kvs []types.RawKV, storageRoot []byte, err error) {
 	// panic if we are syncing and passed the finalizing block height
 	// this must not happened
 	if ch.finalizingBlockHeight != 0 && ch.finalizingBlockHeight < blockHeight {
@@ -157,6 +158,11 @@ func (ch *Child) handleTree(blockHeight int64, latestHeight int64, blockId []byt
 }
 
 func (ch *Child) handleOutput(blockHeight int64, version uint8, blockId []byte, outputIndex uint64, storageRoot []byte) error {
+	//if !ch.monitor.IsOurTurn() {
+	//	ch.Logger().Info("it's not our turn to propose output, skipping")
+	//	return nil
+	//}
+
 	outputRoot := ophosttypes.GenerateOutputRoot(version, storageRoot, blockId)
 	msg, err := ch.host.GetMsgProposeOutput(
 		ch.BridgeId(),

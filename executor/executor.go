@@ -8,10 +8,12 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/gofiber/fiber/v2"
+
 	"github.com/initia-labs/opinit-bots/executor/batch"
 	"github.com/initia-labs/opinit-bots/executor/celestia"
 	"github.com/initia-labs/opinit-bots/executor/child"
 	"github.com/initia-labs/opinit-bots/executor/host"
+	"github.com/initia-labs/opinit-bots/executor/monitor"
 	"github.com/initia-labs/opinit-bots/server"
 
 	bottypes "github.com/initia-labs/opinit-bots/bot/types"
@@ -19,8 +21,9 @@ import (
 
 	opchildtypes "github.com/initia-labs/OPinit/x/opchild/types"
 	ophosttypes "github.com/initia-labs/OPinit/x/ophost/types"
-	"github.com/initia-labs/opinit-bots/types"
 	"go.uber.org/zap"
+
+	"github.com/initia-labs/opinit-bots/types"
 )
 
 var _ bottypes.Bot = &Executor{}
@@ -29,9 +32,10 @@ var _ bottypes.Bot = &Executor{}
 // - relay l1 deposit messages to l2
 // - generate l2 output root and submit to l1
 type Executor struct {
-	host  *host.Host
-	child *child.Child
-	batch *batch.BatchSubmitter
+	host    *host.Host
+	child   *child.Child
+	batch   *batch.BatchSubmitter
+	monitor *monitor.Monitor
 
 	cfg    *executortypes.Config
 	db     types.DB
@@ -51,18 +55,26 @@ func NewExecutor(cfg *executortypes.Config, db types.DB, sv *server.Server, logg
 		host: host.NewHostV1(
 			cfg.L1NodeConfig(homePath),
 			db.WithPrefix([]byte(types.HostName)),
-			logger.Named(types.HostName), cfg.L1Node.Bech32Prefix, "",
+			logger.Named(types.HostName), cfg.L1Node.Bech32Prefix,
 		),
 		child: child.NewChildV1(
 			cfg.L2NodeConfig(homePath),
 			db.WithPrefix([]byte(types.ChildName)),
-			logger.Named(types.ChildName), cfg.L2Node.Bech32Prefix,
+			logger.Named(types.ChildName), cfg.L2Node.Bech32Prefix, cfg.L2BridgeExecutor,
 		),
 		batch: batch.NewBatchSubmitterV1(
 			cfg.L2NodeConfig(homePath),
 			cfg.BatchConfig(), db.WithPrefix([]byte(types.BatchName)),
 			logger.Named(types.BatchName), cfg.L2Node.ChainID, homePath,
 			cfg.L2Node.Bech32Prefix,
+		),
+		monitor: monitor.NewMonitorV1(
+			cfg.MilkyWayNodeConfig(homePath),
+			db.WithPrefix([]byte(types.MonitorName)),
+			logger.Named(types.MonitorName),
+			cfg.MilkyWayNode.Bech32Prefix,
+			cfg.MonitorContract,
+			cfg.OperatorID,
 		),
 
 		cfg:    cfg,
@@ -89,20 +101,25 @@ func (ex *Executor) Initialize(ctx context.Context) error {
 		zap.Duration("submission_interval", bridgeInfo.BridgeConfig.SubmissionInterval),
 	)
 
-	hostProcessedHeight, childProcessedHeight, processedOutputIndex, batchProcessedHeight, err := ex.getProcessedHeights(ctx, bridgeInfo.BridgeId)
+	hostProcessedHeight, childProcessedHeight, processedOutputIndex, batchProcessedHeight, milkywayProcessedHeight, err := ex.getProcessedHeights(ctx, bridgeInfo.BridgeId)
 	if err != nil {
 		return err
 	}
+	ex.logger.Info("processed output index", zap.Uint64("index", processedOutputIndex))
 
-	err = ex.host.Initialize(ctx, hostProcessedHeight, ex.child, ex.batch, bridgeInfo)
+	err = ex.host.Initialize(ctx, hostProcessedHeight, ex.child, ex.batch, ex.monitor, bridgeInfo)
 	if err != nil {
 		return err
 	}
-	err = ex.child.Initialize(ctx, childProcessedHeight, processedOutputIndex+1, ex.host, bridgeInfo)
+	err = ex.child.Initialize(ctx, childProcessedHeight, processedOutputIndex+1, ex.host, ex.monitor, bridgeInfo)
 	if err != nil {
 		return err
 	}
-	err = ex.batch.Initialize(ctx, batchProcessedHeight, ex.host, bridgeInfo)
+	err = ex.batch.Initialize(ctx, batchProcessedHeight, ex.host, ex.monitor, bridgeInfo)
+	if err != nil {
+		return err
+	}
+	err = ex.monitor.Initialize(ctx, milkywayProcessedHeight, bridgeInfo)
 	if err != nil {
 		return err
 	}
@@ -135,6 +152,7 @@ func (ex *Executor) Start(ctx context.Context) error {
 	ex.child.Start(ctx)
 	ex.batch.Start(ctx)
 	ex.batch.DA().Start(ctx)
+	ex.monitor.Start(ctx)
 	return errGrp.Wait()
 }
 
@@ -166,7 +184,7 @@ func (ex *Executor) RegisterQuerier() {
 }
 
 func (ex *Executor) makeDANode(ctx context.Context, bridgeInfo opchildtypes.BridgeInfo) (executortypes.DANode, error) {
-	if !ex.cfg.EnableBatchSubmitter {
+	if ex.cfg.BatchSubmitter == "" {
 		return batch.NewNoopDA(), nil
 	}
 
@@ -177,7 +195,7 @@ func (ex *Executor) makeDANode(ctx context.Context, bridgeInfo opchildtypes.Brid
 			ex.cfg.DANodeConfig(ex.homePath),
 			ex.db.WithPrefix([]byte(types.DAHostName)),
 			ex.logger.Named(types.DAHostName),
-			ex.cfg.DANode.Bech32Prefix, batchInfo.BatchInfo.Submitter,
+			ex.cfg.DANode.Bech32Prefix,
 		)
 
 		// should exist
@@ -200,7 +218,7 @@ func (ex *Executor) makeDANode(ctx context.Context, bridgeInfo opchildtypes.Brid
 		celestiada := celestia.NewDACelestia(ex.cfg.Version, ex.cfg.DANodeConfig(ex.homePath),
 			ex.db.WithPrefix([]byte(types.DACelestiaName)),
 			ex.logger.Named(types.DACelestiaName),
-			ex.cfg.DANode.Bech32Prefix, batchInfo.BatchInfo.Submitter,
+			ex.cfg.DANode.Bech32Prefix,
 		)
 		err := celestiada.Initialize(ctx, ex.batch, bridgeInfo.BridgeId)
 		if err != nil {
@@ -213,27 +231,27 @@ func (ex *Executor) makeDANode(ctx context.Context, bridgeInfo opchildtypes.Brid
 	return nil, fmt.Errorf("unsupported chain id for DA: %s", ophosttypes.BatchInfo_ChainType_name[int32(batchInfo.BatchInfo.ChainType)])
 }
 
-func (ex *Executor) getProcessedHeights(ctx context.Context, bridgeId uint64) (l1ProcessedHeight int64, l2ProcessedHeight int64, processedOutputIndex uint64, batchProcessedHeight int64, err error) {
+func (ex *Executor) getProcessedHeights(ctx context.Context, bridgeId uint64) (l1ProcessedHeight int64, l2ProcessedHeight int64, processedOutputIndex uint64, batchProcessedHeight, milkywayProcessedHeight int64, err error) {
 	// get the bridge start height from the host
 	l1ProcessedHeight, err = ex.host.QueryCreateBridgeHeight(ctx, bridgeId)
 	if err != nil {
-		return 0, 0, 0, 0, err
+		return 0, 0, 0, 0, 0, err
 	}
 
 	l1Sequence, err := ex.child.QueryNextL1Sequence(ctx, 0)
 	if err != nil {
-		return 0, 0, 0, 0, err
+		return 0, 0, 0, 0, 0, err
 	}
 
 	// query l1Sequence tx height
 	depositTxHeight, err := ex.host.QueryDepositTxHeight(ctx, bridgeId, l1Sequence)
 	if err != nil {
-		return 0, 0, 0, 0, err
+		return 0, 0, 0, 0, 0, err
 	} else if depositTxHeight == 0 && l1Sequence > 1 {
 		// query l1Sequence - 1 tx height
 		depositTxHeight, err = ex.host.QueryDepositTxHeight(ctx, bridgeId, l1Sequence-1)
 		if err != nil {
-			return 0, 0, 0, 0, err
+			return 0, 0, 0, 0, 0, err
 		}
 	}
 	if depositTxHeight >= 1 && depositTxHeight-1 > l1ProcessedHeight {
@@ -244,7 +262,7 @@ func (ex *Executor) getProcessedHeights(ctx context.Context, bridgeId uint64) (l
 	if ex.cfg.L2StartHeight != 0 {
 		output, err := ex.host.QueryOutputByL2BlockNumber(ctx, bridgeId, ex.cfg.L2StartHeight)
 		if err != nil {
-			return 0, 0, 0, 0, err
+			return 0, 0, 0, 0, 0, err
 		} else if output != nil {
 			l1BlockNumber := types.MustUint64ToInt64(output.OutputProposal.L1BlockNumber)
 			if l1BlockNumber < l1ProcessedHeight {
@@ -258,5 +276,10 @@ func (ex *Executor) getProcessedHeights(ctx context.Context, bridgeId uint64) (l
 	if ex.cfg.BatchStartHeight > 0 {
 		batchProcessedHeight = ex.cfg.BatchStartHeight - 1
 	}
-	return l1ProcessedHeight, l2ProcessedHeight, processedOutputIndex, batchProcessedHeight, err
+
+	if ex.cfg.MilkyWayStartHeight > 0 {
+		milkywayProcessedHeight = ex.cfg.MilkyWayStartHeight - 1
+	}
+
+	return l1ProcessedHeight, l2ProcessedHeight, processedOutputIndex, batchProcessedHeight, milkywayProcessedHeight, err
 }
