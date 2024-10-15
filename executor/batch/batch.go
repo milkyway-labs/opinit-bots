@@ -115,7 +115,7 @@ func (bs *BatchSubmitter) Initialize(
 	}
 	bs.host = host
 	bs.monitor = monitor
-	bs.bridgeInfo = bridgeInfo
+	bs.SetBridgeInfo(bridgeInfo)
 
 	res, err := bs.host.QueryBatchInfos(ctx, bridgeInfo.BridgeId)
 	if err != nil {

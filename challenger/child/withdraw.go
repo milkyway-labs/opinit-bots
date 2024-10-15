@@ -4,22 +4,19 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
-	"cosmossdk.io/math"
-	opchildtypes "github.com/initia-labs/OPinit/x/opchild/types"
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	ophosttypes "github.com/initia-labs/OPinit/x/ophost/types"
-	challengertypes "github.com/initia-labs/opinit-bots/challenger/types"
-	"github.com/initia-labs/opinit-bots/types"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
-	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	challengertypes "github.com/initia-labs/opinit-bots/challenger/types"
 	dbtypes "github.com/initia-labs/opinit-bots/db/types"
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
 	childprovider "github.com/initia-labs/opinit-bots/provider/child"
+	"github.com/initia-labs/opinit-bots/types"
 )
 
 func (ch *Child) initiateWithdrawalHandler(_ context.Context, args nodetypes.EventHandlerArgs) error {
@@ -27,30 +24,6 @@ func (ch *Child) initiateWithdrawalHandler(_ context.Context, args nodetypes.Eve
 	if err != nil {
 		return err
 	}
-
-	for _, attr := range args.EventAttributes {
-		switch attr.Key {
-		case opchildtypes.AttributeKeyL2Sequence:
-			l2Sequence, err = strconv.ParseUint(attr.Value, 10, 64)
-			if err != nil {
-				return err
-			}
-		case opchildtypes.AttributeKeyFrom:
-			from = attr.Value
-		case opchildtypes.AttributeKeyTo:
-			to = attr.Value
-		case opchildtypes.AttributeKeyBaseDenom:
-			baseDenom = attr.Value
-		case opchildtypes.AttributeKeyAmount:
-			coinAmount, ok := math.NewIntFromString(attr.Value)
-			if !ok {
-				return fmt.Errorf("invalid amount %s", attr.Value)
-			}
-
-			amount = coinAmount.Uint64()
-		}
-	}
-
 	return ch.handleInitiateWithdrawal(l2Sequence, from, to, baseDenom, amount)
 }
 
@@ -79,7 +52,7 @@ func (ch *Child) prepareTree(blockHeight int64) error {
 	}
 
 	err := ch.Merkle().LoadWorkingTree(types.MustInt64ToUint64(blockHeight - 1))
-	if err == dbtypes.ErrNotFound {
+	if errors.Is(err, dbtypes.ErrNotFound) {
 		// must not happened
 		panic(fmt.Errorf("working tree not found at height: %d, current: %d", blockHeight-1, blockHeight))
 	} else if err != nil {
