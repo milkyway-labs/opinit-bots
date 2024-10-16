@@ -12,10 +12,11 @@ import (
 )
 
 func (h *Host) initiateDepositHandler(_ context.Context, args nodetypes.EventHandlerArgs) error {
-	//if !h.monitor.IsOurTurn() {
-	//	h.Logger().Info("it's not our turn to finalize deposit, skipping")
-	//	return nil
-	//}
+	if !h.monitor.IsOurTurn() {
+		h.Logger().Info("it's not our turn to finalize deposit, skipping")
+		// TODO: need to keep list of missed events to handle edge case
+		return nil
+	}
 
 	bridgeId, l1Sequence, from, to, l1Denom, l2Denom, amount, data, err := hostprovider.ParseMsgInitiateDeposit(args.EventAttributes)
 	if err != nil {

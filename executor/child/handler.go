@@ -19,19 +19,22 @@ func (ch *Child) beginBlockHandler(ctx context.Context, args nodetypes.BeginBloc
 		return err
 	}
 
-	err = ch.prepareOutput(ctx)
-	if err != nil {
-		return err
+	for {
+		retry, err := ch.prepareOutput(ctx, blockHeight)
+		if err != nil {
+			return err
+		}
+		if !retry {
+			break
+		}
 	}
 	return nil
 }
 
 func (ch *Child) endBlockHandler(_ context.Context, args nodetypes.EndBlockArgs) error {
-	isOurTurn := ch.monitor.IsOurTurn()
-
 	blockHeight := args.Block.Header.Height
 	batchKVs := make([]types.RawKV, 0)
-	treeKVs, storageRoot, err := ch.handleTree(blockHeight, args.LatestHeight, args.BlockID, args.Block.Header, isOurTurn)
+	treeKVs, storageRoot, err := ch.handleTree(blockHeight, args.LatestHeight, args.BlockID, args.Block.Header)
 	if err != nil {
 		return err
 	}

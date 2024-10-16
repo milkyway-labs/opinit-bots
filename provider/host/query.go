@@ -9,7 +9,7 @@ import (
 	"time"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	query "github.com/cosmos/cosmos-sdk/types/query"
+	"github.com/cosmos/cosmos-sdk/types/query"
 
 	ophosttypes "github.com/initia-labs/OPinit/x/ophost/types"
 

@@ -8,6 +8,7 @@ import (
 
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"go.uber.org/zap"
 
 	btypes "github.com/initia-labs/opinit-bots/node/broadcaster/types"
 )
@@ -38,13 +39,13 @@ func (m *Monitor) handleEpoch(ctx context.Context) error {
 		return nil
 	}
 
-	//isOurTurnBefore := m.isOurTurn.Load()
+	isOurTurnBefore := m.isOurTurn.Load()
 	isOurTurn := currentEpoch.OperatorID != nil && *currentEpoch.OperatorID == m.operatorID
 	m.isOurTurn.Store(isOurTurn)
 
-	//if isOurTurnBefore != isOurTurn {
-	//	m.Logger().Info("turn changed", zap.Bool("is_our_turn", isOurTurn))
-	//}
+	if isOurTurnBefore != isOurTurn {
+		m.Logger().Info("turn changed", zap.Bool("is_our_turn", isOurTurn))
+	}
 	return nil
 }
 

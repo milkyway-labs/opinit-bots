@@ -50,11 +50,6 @@ func (bs *BatchSubmitter) rawBlockHandler(ctx context.Context, args nodetypes.Ra
 		return errors.Wrap(err, "failed to check batch")
 	}
 
-	//if !bs.monitor.IsOurTurn() && len(bs.processedMsgs) > 0 {
-	//	bs.logger.Info("it's not our turn to submit batch, skipping")
-	//	bs.processedMsgs = bs.processedMsgs[:0]
-	//}
-
 	// store the processed state into db with batch operation
 	batchKVs := make([]types.RawKV, 0)
 	batchKVs = append(batchKVs, bs.node.SyncInfoToRawKV(args.BlockHeight))
@@ -121,6 +116,7 @@ func (bs *BatchSubmitter) prepareBatch(blockHeight int64) error {
 		bs.node.SetSyncInfo(types.MustUint64ToInt64(nextBatchInfo.Output.L2BlockNumber))
 		bs.DequeueBatchInfo()
 
+		// TODO: This is not true!
 		// error will restart block process from nextBatchInfo.Output.L2BlockNumber + 1
 		panic(fmt.Errorf("batch info updated: reset from %d", nextBatchInfo.Output.L2BlockNumber))
 	}

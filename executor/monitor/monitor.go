@@ -100,10 +100,10 @@ func (m *Monitor) Start(ctx context.Context) {
 	eg := types.ErrGrp(ctx)
 	eg.Go(func() (err error) {
 		defer func() {
-			m.Logger().Info("tx broadcast looper stopped")
+			m.Logger().Info("monitor looper stopped")
 			if r := recover(); r != nil {
-				m.Logger().Error("tx broadcast looper panic", zap.Any("recover", r))
-				err = fmt.Errorf("tx broadcast looper panic: %v", r)
+				m.Logger().Error("monitor looper panic", zap.Any("recover", r))
+				err = fmt.Errorf("monitor looper panic: %v", r)
 			}
 		}()
 		return m.runLoop(ctx)
