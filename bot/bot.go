@@ -23,6 +23,7 @@ func LoadJsonConfig(path string, config bottypes.Config) error {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 	data, err := io.ReadAll(file)
 	if err != nil {
 		return err

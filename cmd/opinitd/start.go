@@ -60,7 +60,6 @@ Currently supported bots:
 			if err != nil {
 				return err
 			}
-			defer bot.Close()
 			return bot.Start(ctx)
 		},
 	}

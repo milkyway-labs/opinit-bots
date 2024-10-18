@@ -2,9 +2,12 @@ package batch
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
@@ -82,6 +85,25 @@ func (bs *BatchSubmitter) prepareBatch(blockHeight int64) error {
 		return err
 	}
 
+	lastSubmittedBatchEndBlockNumber := bs.LastSubmittedBatchEndBlockNumber()
+	numChunksToPrune := lastSubmittedBatchEndBlockNumber - bs.localBatchInfo.Start + 1
+	if numChunksToPrune > 0 {
+		err = bs.pruneSubmittedChunks(int(numChunksToPrune))
+		if err != nil {
+			return fmt.Errorf("prune %d submitted chunks: %w", numChunksToPrune, err)
+		}
+		bs.logger.Info("pruned submitted chunks",
+			zap.Int64("from_height", bs.localBatchInfo.Start),
+			zap.Int64("to_height", lastSubmittedBatchEndBlockNumber))
+
+		bs.localBatchInfo.Start = lastSubmittedBatchEndBlockNumber + 1
+		fileSize, err := bs.batchFileSize(false)
+		if err != nil {
+			return err
+		}
+		bs.localBatchInfo.BatchFileSize = fileSize // TODO: is it necessary?
+	}
+
 	// check whether the requested block height is reached to the l2 block number of the next batch info.
 	if nextBatchInfo := bs.NextBatchInfo(); nextBatchInfo != nil && types.MustUint64ToInt64(nextBatchInfo.Output.L2BlockNumber) < blockHeight {
 		// if the next batch info is reached, finalize the current batch and update the batch info.
@@ -144,6 +166,78 @@ func (bs *BatchSubmitter) prepareBatch(blockHeight int64) error {
 // write block bytes to batch file
 func (bs *BatchSubmitter) handleBatch(blockBytes []byte) (int, error) {
 	return bs.batchWriter.Write(prependLength(blockBytes))
+}
+
+// pruneSubmittedChunks prunes the first n submitted chunks from the batch file.
+func (bs *BatchSubmitter) pruneSubmittedChunks(n int) error {
+	// Close the writer to flush any unwritten data.
+	err := bs.batchWriter.Close()
+	if err != nil {
+		return fmt.Errorf("close batch writer: %w", err)
+	}
+
+	// Reset the file pointer to the beginning of the file, and create a
+	// new gzip reader.
+	_, err = bs.batchFile.Seek(0, io.SeekStart)
+	if err != nil {
+		return fmt.Errorf("move batch file pointer: %w", err)
+	}
+	r, err := gzip.NewReader(bs.batchFile)
+	if err != nil {
+		return fmt.Errorf("new gzip reader: %w", err)
+	}
+	defer r.Close()
+
+	for i := 0; i < n; i++ {
+		var length uint64
+		err = binary.Read(r, binary.LittleEndian, &length)
+		if err != nil {
+			return fmt.Errorf("read chunk length: %w", err)
+		}
+		_, err = io.CopyN(io.Discard, r, int64(length))
+		if err != nil {
+			return fmt.Errorf("discard chunk: %w", err)
+		}
+	}
+
+	// Create a temporary file which is used to store the remaining data.
+	tempFile, err := os.CreateTemp(bs.homePath, "batch*")
+	if err != nil {
+		return fmt.Errorf("create temporary batch file: %w", err)
+	}
+	defer tempFile.Close()
+
+	// Create a new gzip writer to write the remaining data to the temporary file.
+	w, err := gzip.NewWriterLevel(tempFile, 6)
+	if err != nil {
+		return fmt.Errorf("new gzip writer: %w", err)
+	}
+	defer w.Close()
+
+	// Copy the remaining data to the temporary file.Note that we are copying the
+	// remaining data from the gzip reader to the gzip writer.
+	if _, err = io.Copy(w, r); err != nil {
+		return fmt.Errorf("copy data to temporary batch file: %w", err)
+	}
+	if err = r.Close(); err != nil {
+		return err
+	}
+
+	// Close the batch file before renaming the temporary file to the batch file.
+	if err = bs.batchFile.Close(); err != nil {
+		return err
+	}
+	// Rename the temporary file to the batch file.
+	if err = os.Rename(tempFile.Name(), bs.batchFile.Name()); err != nil {
+		return fmt.Errorf("replace batch file with temporary batch file: %w", err)
+	}
+
+	bs.batchFile, err = os.OpenFile(bs.batchFile.Name(), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	if err != nil {
+		return fmt.Errorf("open batch file: %w", err)
+	}
+	bs.batchWriter.Reset(bs.batchFile)
+	return nil
 }
 
 // finalize batch and create batch messages
@@ -247,6 +341,11 @@ func (bs *BatchSubmitter) checkBatch(ctx context.Context, blockHeight int64, lat
 	}
 
 	bs.localBatchInfo.BatchFileSize = fileSize
+
+	if !bs.monitor.IsOurTurn() {
+		return nil
+	}
+
 	// if the block time is after the last submission time + submission interval * 2/3
 	// or the block time is after the last submission time + max submission time
 	// or the batch file size is greater than (max chunks - 1) * max chunk size

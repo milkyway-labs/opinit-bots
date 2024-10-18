@@ -57,6 +57,9 @@ type BatchSubmitter struct {
 	chainID  string
 	homePath string
 
+	lastSubmittedBatchLock           sync.Mutex
+	lastSubmittedBatchEndBlockNumber int64
+
 	// status info
 	LastBatchEndBlockNumber int64
 }
@@ -197,6 +200,20 @@ func (bs *BatchSubmitter) DA() executortypes.DANode {
 	return bs.da
 }
 
-func (bs BatchSubmitter) Node() *node.Node {
+func (bs *BatchSubmitter) Node() *node.Node {
 	return bs.node
+}
+
+func (bs *BatchSubmitter) LastSubmittedBatchEndBlockNumber() int64 {
+	bs.lastSubmittedBatchLock.Lock()
+	defer bs.lastSubmittedBatchLock.Unlock()
+	return bs.lastSubmittedBatchEndBlockNumber
+}
+
+func (bs *BatchSubmitter) UpdateLastSubmittedBatchEndBlockNumber(end int64) {
+	bs.lastSubmittedBatchLock.Lock()
+	defer bs.lastSubmittedBatchLock.Unlock()
+	if bs.lastSubmittedBatchEndBlockNumber < end {
+		bs.lastSubmittedBatchEndBlockNumber = end
+	}
 }

@@ -24,7 +24,7 @@ func (b BaseHost) GetMsgProposeOutput(
 	}
 
 	msg := ophosttypes.NewMsgProposeOutput(
-		// The output submitter grants permission to the operator admin
+		// The L2 output submitter grants permission to the operator's output submitter
 		b.bridgeInfo.BridgeConfig.Proposer,
 		bridgeId,
 		outputIndex,
@@ -52,7 +52,8 @@ func (b BaseHost) CreateBatchMsg(batchBytes []byte) (sdk.Msg, error) {
 	}
 
 	msg := ophosttypes.NewMsgRecordBatch(
-		submitter,
+		// The L2 batch submitter grants permission to the operator's batch submitter
+		b.bridgeInfo.BridgeConfig.BatchInfo.Submitter,
 		b.BridgeId(),
 		batchBytes,
 	)
@@ -60,5 +61,9 @@ func (b BaseHost) CreateBatchMsg(batchBytes []byte) (sdk.Msg, error) {
 	if err != nil {
 		return nil, err
 	}
-	return msg, nil
+	execMsg, err := types.NewMsgExec(submitter, []sdk.Msg{msg})
+	if err != nil {
+		return nil, err
+	}
+	return execMsg, nil
 }

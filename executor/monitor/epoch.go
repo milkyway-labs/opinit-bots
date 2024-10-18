@@ -29,12 +29,16 @@ func (m *Monitor) handleEpoch(ctx context.Context) error {
 
 	// If EpochEndsAt is not set or the current time is after it, advance the epoch.
 	// Note advancing epoch is permissionless.
-	if currentEpoch.EpochEndsAt == nil || !blockTime.Before(time.Unix(0, int64(*currentEpoch.EpochEndsAt))) {
+	nextCheckTime := m.lastAdvanceEpochTime.Add(time.Duration(currentEpoch.EpochDuration) * time.Second)
+	if currentEpoch.EpochEndsAt == nil ||
+		((m.lastAdvanceEpochTime.IsZero() || !blockTime.Before(nextCheckTime)) &&
+			!blockTime.Before(time.Unix(0, int64(*currentEpoch.EpochEndsAt)))) {
 		m.Logger().Info("advancing epoch")
 		err = m.advanceEpoch(ctx)
 		if err != nil {
 			return fmt.Errorf("advance epoch: %w", err)
 		}
+		m.lastAdvanceEpochTime = blockTime
 		// Exit and check if the current operator is me in the next block.
 		return nil
 	}
@@ -54,7 +58,8 @@ type currentEpochResponse struct {
 	//EpochID     uint64  `json:"epoch_id"`
 	OperatorID *uint32 `json:"operator_id"`
 	//Operator    *string `json:"operator"`
-	EpochEndsAt *uint64 `json:"epoch_ends_at,string"`
+	EpochEndsAt   *uint64 `json:"epoch_ends_at,string"`
+	EpochDuration uint64  `json:"epoch_duration"` // in seconds
 }
 
 func (m Monitor) queryCurrentEpoch(ctx context.Context) (currentEpochResponse, error) {

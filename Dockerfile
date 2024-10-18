@@ -14,7 +14,7 @@ RUN apk add --no-cache git g++ make
 WORKDIR /app
 COPY go.mod go.sum .
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=cache,target=/root/go/pkg/mod \
+    --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
 COPY . .
@@ -26,7 +26,7 @@ ADD https://github.com/CosmWasm/wasmvm/releases/download/${LIBWASMVM_VERSION}/li
 RUN cp /lib/libwasmvm_muslc.`uname -m`.a /lib/libwasmvm_muslc.a
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=cache,target=/root/go/pkg/mod \
+    --mount=type=cache,target=/go/pkg/mod \
     BUILD_TAGS=muslc LDFLAGS="-linkmode=external -extldflags \"-Wl,-z,muldefs -static\"" make install
 
 FROM alpine:latest

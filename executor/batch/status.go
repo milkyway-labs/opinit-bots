@@ -4,6 +4,7 @@ import (
 	"time"
 
 	ophosttypes "github.com/initia-labs/OPinit/x/ophost/types"
+
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
 )
 
@@ -16,7 +17,7 @@ type Status struct {
 	LastBatchSubmissionTime time.Time             `json:"last_batch_submission_time"`
 }
 
-func (bs BatchSubmitter) GetStatus() Status {
+func (bs *BatchSubmitter) GetStatus() Status {
 	return Status{
 		Node:                    bs.node.GetStatus(),
 		BatchInfo:               bs.BatchInfo().BatchInfo,

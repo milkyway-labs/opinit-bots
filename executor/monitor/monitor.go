@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync/atomic"
+	"time"
 
 	"github.com/CosmWasm/wasmd/x/wasm"
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
@@ -35,7 +36,8 @@ type Monitor struct {
 	contractAddr string
 	operatorID   uint32
 
-	isOurTurn atomic.Bool
+	lastAdvanceEpochTime time.Time
+	isOurTurn            atomic.Bool
 }
 
 func NewMonitorV1(

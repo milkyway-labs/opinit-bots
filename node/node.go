@@ -7,12 +7,13 @@ import (
 	"github.com/pkg/errors"
 
 	"cosmossdk.io/core/address"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/initia-labs/opinit-bots/node/broadcaster"
 	"github.com/initia-labs/opinit-bots/node/rpcclient"
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
 	"github.com/initia-labs/opinit-bots/types"
-	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -170,6 +171,10 @@ func (n Node) AccountCodec() address.Codec {
 
 func (n Node) GetHeight() int64 {
 	return n.lastProcessedBlockHeight + 1
+}
+
+func (n Node) GetCodec() codec.Codec {
+	return n.cdc
 }
 
 func (n Node) GetTxConfig() client.TxConfig {

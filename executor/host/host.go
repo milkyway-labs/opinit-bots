@@ -28,6 +28,7 @@ type childNode interface {
 
 type batchNode interface {
 	UpdateBatchInfo(string, string, uint64, int64)
+	UpdateLastSubmittedBatchEndBlockNumber(int64)
 }
 
 type monitorNode interface {
