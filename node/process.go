@@ -19,11 +19,14 @@ func (n *Node) blockProcessLooper(ctx context.Context, processType nodetypes.Blo
 	timer := time.NewTicker(types.PollingInterval(ctx))
 	defer timer.Stop()
 
+	consecutiveErrors := 0
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-timer.C:
+			types.SleepWithRetry(ctx, consecutiveErrors)
+			consecutiveErrors++
 		}
 
 		status, err := n.rpcClient.Status(ctx)
@@ -101,6 +104,7 @@ func (n *Node) blockProcessLooper(ctx context.Context, processType nodetypes.Blo
 				n.lastProcessedBlockHeight = i
 			}
 		}
+		consecutiveErrors = 0
 	}
 }
 
@@ -154,6 +158,7 @@ func (n *Node) handleNewBlock(ctx context.Context, block *rpccoretypes.ResultBlo
 				LatestHeight: latestChainHeight,
 				TxIndex:      int64(txIndex),
 				Tx:           tx,
+				Success:      blockResult.TxsResults[txIndex].Code == abcitypes.CodeTypeOK,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to handle tx: tx_index: %d; %w", txIndex, err)
@@ -215,11 +220,14 @@ func (n *Node) txChecker(ctx context.Context) error {
 
 	timer := time.NewTicker(types.PollingInterval(ctx))
 	defer timer.Stop()
+	consecutiveErrors := 0
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-timer.C:
+			types.SleepWithRetry(ctx, consecutiveErrors)
+			consecutiveErrors++
 		}
 
 		pendingTx, res, blockTime, err := n.broadcaster.CheckPendingTx(ctx)
@@ -251,5 +259,6 @@ func (n *Node) txChecker(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		consecutiveErrors = 0
 	}
 }

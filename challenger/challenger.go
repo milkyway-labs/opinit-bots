@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -101,14 +102,33 @@ func (c *Challenger) Initialize(ctx context.Context) error {
 		return err
 	}
 
-	err = c.host.Initialize(ctx, hostProcessedHeight, c.child, bridgeInfo, c)
+	var initialBlockTime time.Time
+	hostInitialBlockTime, err := c.host.Initialize(ctx, hostProcessedHeight, c.child, bridgeInfo, c)
 	if err != nil {
 		return err
 	}
-	err = c.child.Initialize(ctx, childProcessedHeight, processedOutputIndex+1, c.host, bridgeInfo, c)
+	if initialBlockTime.Before(hostInitialBlockTime) {
+		initialBlockTime = hostInitialBlockTime
+	}
+
+	childInitialBlockTime, err := c.child.Initialize(ctx, childProcessedHeight, processedOutputIndex+1, c.host, bridgeInfo, c)
 	if err != nil {
 		return err
 	}
+	if initialBlockTime.Before(childInitialBlockTime) {
+		initialBlockTime = childInitialBlockTime
+	}
+
+	// only called when `ResetHeight` was executed.
+	if !initialBlockTime.IsZero() {
+		// The db state is reset to a specific height, so we also
+		// need to delete future challenges which are not applicable anymore.
+		err := c.DeleteFutureChallenges(initialBlockTime)
+		if err != nil {
+			return err
+		}
+	}
+
 	c.RegisterQuerier()
 
 	c.pendingChallenges, err = c.loadPendingChallenges()
@@ -193,43 +213,56 @@ func (c *Challenger) RegisterQuerier() {
 }
 
 func (c *Challenger) getProcessedHeights(ctx context.Context, bridgeId uint64) (l1ProcessedHeight int64, l2ProcessedHeight int64, processedOutputIndex uint64, err error) {
-	// get the bridge start height from the host
-	l1ProcessedHeight, err = c.host.QueryCreateBridgeHeight(ctx, bridgeId)
-	if err != nil {
-		return 0, 0, 0, err
-	}
-
+	var outputL1BlockNumber int64
 	// get the last submitted output height before the start height from the host
 	if c.cfg.L2StartHeight != 0 {
 		output, err := c.host.QueryLastFinalizedOutput(ctx, bridgeId)
 		if err != nil {
 			return 0, 0, 0, err
 		} else if output != nil {
-			l1ProcessedHeight = types.MustUint64ToInt64(output.OutputProposal.L1BlockNumber)
+			outputL1BlockNumber = types.MustUint64ToInt64(output.OutputProposal.L1BlockNumber)
 			l2ProcessedHeight = types.MustUint64ToInt64(output.OutputProposal.L2BlockNumber)
 			processedOutputIndex = output.OutputIndex
 		}
 	}
-	if l2ProcessedHeight > 0 {
-		// get the last deposit tx height from the host
-		l1Sequence, err := c.child.QueryNextL1Sequence(ctx, l2ProcessedHeight-1)
+
+	if c.cfg.DisableAutoSetL1Height {
+		l1ProcessedHeight = c.cfg.L1StartHeight
+	} else {
+		// get the bridge start height from the host
+		l1ProcessedHeight, err = c.host.QueryCreateBridgeHeight(ctx, bridgeId)
 		if err != nil {
 			return 0, 0, 0, err
 		}
-		// query l1Sequence tx height
-		depositTxHeight, err := c.host.QueryDepositTxHeight(ctx, bridgeId, l1Sequence)
-		if err != nil {
-			return 0, 0, 0, err
-		} else if depositTxHeight == 0 && l1Sequence > 1 {
-			// query l1Sequence - 1 tx height
-			depositTxHeight, err = c.host.QueryDepositTxHeight(ctx, bridgeId, l1Sequence-1)
+
+		if l2ProcessedHeight > 0 {
+			l1Sequence, err := c.child.QueryNextL1Sequence(ctx, l2ProcessedHeight-1)
 			if err != nil {
 				return 0, 0, 0, err
 			}
-		}
-		if depositTxHeight >= 1 && depositTxHeight-1 < l1ProcessedHeight {
-			l1ProcessedHeight = depositTxHeight - 1
+			// query l1Sequence tx height
+			depositTxHeight, err := c.host.QueryDepositTxHeight(ctx, bridgeId, l1Sequence)
+			if err != nil {
+				return 0, 0, 0, err
+			} else if depositTxHeight == 0 && l1Sequence > 1 {
+				// query l1Sequence - 1 tx height
+				depositTxHeight, err = c.host.QueryDepositTxHeight(ctx, bridgeId, l1Sequence-1)
+				if err != nil {
+					return 0, 0, 0, err
+				}
+			}
+
+			if depositTxHeight > l1ProcessedHeight {
+				l1ProcessedHeight = depositTxHeight
+			}
+			if outputL1BlockNumber != 0 && outputL1BlockNumber < l1ProcessedHeight {
+				l1ProcessedHeight = outputL1BlockNumber
+			}
 		}
 	}
+	if l1ProcessedHeight > 0 {
+		l1ProcessedHeight--
+	}
+
 	return l1ProcessedHeight, l2ProcessedHeight, processedOutputIndex, err
 }

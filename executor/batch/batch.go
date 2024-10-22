@@ -136,7 +136,7 @@ func (bs *BatchSubmitter) Initialize(
 	}
 
 	fileFlag := os.O_CREATE | os.O_RDWR | os.O_APPEND
-	bs.batchFile, err = os.OpenFile(filepath.Join(bs.homePath, "batch"), fileFlag, 0666)
+	bs.batchFile, err = os.OpenFile(filepath.Join(bs.homePath, "batch"), fileFlag, 0640)
 	if err != nil {
 		return err
 	}
