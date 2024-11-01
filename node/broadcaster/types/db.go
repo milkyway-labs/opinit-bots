@@ -8,6 +8,7 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/x/authz"
 )
 
 type PendingTxInfo struct {
@@ -100,7 +101,14 @@ func (p ProcessedMsgs) String() string {
 func (p ProcessedMsgs) GetMsgTypes() []string {
 	msgTypes := make([]string, 0, len(p.Msgs))
 	for _, msg := range p.Msgs {
-		msgTypes = append(msgTypes, sdk.MsgTypeURL(msg))
+		execMsg, ok := msg.(*authz.MsgExec)
+		if ok {
+			for _, msg := range execMsg.Msgs {
+				msgTypes = append(msgTypes, msg.TypeUrl)
+			}
+		} else {
+			msgTypes = append(msgTypes, sdk.MsgTypeURL(msg))
+		}
 	}
 	return msgTypes
 }
