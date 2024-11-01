@@ -99,7 +99,7 @@ func (bs *BatchSubmitter) prepareBatch(blockHeight int64) error {
 			zap.Int64("from_height", bs.localBatchInfo.Start),
 			zap.Int64("to_height", pruneTo))
 
-		bs.localBatchInfo.Start = lastSubmittedBatchEndBlockNumber + 1
+		bs.localBatchInfo.Start = pruneTo + 1
 		fileSize, err := bs.batchFileSize(false)
 		if err != nil {
 			return err
