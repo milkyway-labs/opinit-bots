@@ -2,6 +2,7 @@ package host
 
 import (
 	"context"
+	"sync/atomic"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	opchildtypes "github.com/initia-labs/OPinit/x/opchild/types"
@@ -49,6 +50,9 @@ type Host struct {
 	// status info
 	lastProposedOutputIndex         uint64
 	lastProposedOutputL2BlockNumber int64
+
+	depositQueue                 []executortypes.Deposit
+	lastFinalizedDepositSequence atomic.Uint64
 }
 
 func NewHostV1(
@@ -78,6 +82,7 @@ func (h *Host) Initialize(
 	if err != nil {
 		return err
 	}
+	h.UpdateLastFinalizedDepositSequence(h.initialL1Sequence - 1)
 	h.registerHandlers()
 	return nil
 }
@@ -104,4 +109,12 @@ func (h *Host) registerHandlers() {
 
 func (h *Host) registerDAHandlers() {
 	h.Node().RegisterEventHandler(ophosttypes.EventTypeRecordBatch, h.recordBatchHandler)
+}
+
+func (h *Host) LastFinalizedDepositSequence() uint64 {
+	return h.lastFinalizedDepositSequence.Load()
+}
+
+func (h *Host) UpdateLastFinalizedDepositSequence(sequence uint64) {
+	h.lastFinalizedDepositSequence.Store(sequence)
 }

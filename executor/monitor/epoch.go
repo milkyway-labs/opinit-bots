@@ -21,6 +21,7 @@ func (m *Monitor) handleEpoch(ctx context.Context) error {
 		return fmt.Errorf("query abci info: %w", err)
 	}
 	blockTime := headerRes.Header.Time
+	// TODO: what if block duration is too long?
 
 	currentEpoch, err := m.queryCurrentEpoch(ctx)
 	if err != nil {
@@ -48,7 +49,9 @@ func (m *Monitor) handleEpoch(ctx context.Context) error {
 	m.isOurTurn.Store(isOurTurn)
 
 	if isOurTurnBefore != isOurTurn {
-		m.Logger().Info("turn changed", zap.Bool("is_our_turn", isOurTurn))
+		m.Logger().Info("turn changed",
+			zap.Bool("is_our_turn", isOurTurn),
+			zap.Int64("height", headerRes.Header.Height))
 	}
 	return nil
 }

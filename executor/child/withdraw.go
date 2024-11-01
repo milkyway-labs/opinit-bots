@@ -106,6 +106,7 @@ func (ch *Child) prepareOutput(ctx context.Context, blockHeight int64) (retry bo
 			// We need to reconcile trees.
 			finalizedBlockHeight := finalizingBlockHeight
 			lastL2Sequence := ch.Merkle().GetStartLeafIndex() + ch.Merkle().GetWorkingTreeLeafCount() - 1
+			// TODO: do not apply this immediately. instead, do it in end block handler.
 			err = ch.reconcileTrees(ctx, finalizedBlockHeight, lastL2Sequence)
 			if err != nil {
 				return false, fmt.Errorf("reconcile trees: %w", err)

@@ -7,17 +7,13 @@ import (
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
+	dbtypes "github.com/initia-labs/opinit-bots/db/types"
+	executortypes "github.com/initia-labs/opinit-bots/executor/types"
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
 	hostprovider "github.com/initia-labs/opinit-bots/provider/host"
 )
 
 func (h *Host) initiateDepositHandler(_ context.Context, args nodetypes.EventHandlerArgs) error {
-	if !h.monitor.IsOurTurn() {
-		h.Logger().Info("it's not our turn to finalize deposit, skipping")
-		// TODO: need to keep list of missed events to handle edge case
-		return nil
-	}
-
 	bridgeId, l1Sequence, from, to, l1Denom, l2Denom, amount, data, err := hostprovider.ParseMsgInitiateDeposit(args.EventAttributes)
 	if err != nil {
 		return err
@@ -31,21 +27,16 @@ func (h *Host) initiateDepositHandler(_ context.Context, args nodetypes.EventHan
 		return nil
 	}
 
-	msg, err := h.handleInitiateDeposit(
-		l1Sequence,
-		args.BlockHeight,
-		from,
-		to,
-		l1Denom,
-		l2Denom,
-		amount,
-		data,
-	)
-	if err != nil {
-		return err
-	} else if msg != nil {
-		h.AppendMsgQueue(msg)
-	}
+	h.depositQueue = append(h.depositQueue, executortypes.Deposit{
+		Sequence:    l1Sequence,
+		BlockHeight: args.BlockHeight,
+		From:        from,
+		To:          to,
+		L1Denom:     l1Denom,
+		L2Denom:     l2Denom,
+		Amount:      amount,
+		Data:        data,
+	})
 	return nil
 }
 
@@ -74,4 +65,18 @@ func (h *Host) handleInitiateDeposit(
 		l1Denom,
 		data,
 	)
+}
+
+func (h *Host) pruneFinalizedDeposits(lastFinalizedSequence uint64) error {
+	var prunedSequences []uint64
+	err := h.DB().PrefixedIterate(executortypes.DepositKey, func(key, value []byte) (bool, error) {
+		sequence := dbtypes.ToUint64Key(key[len(key)-8:])
+		if sequence <= lastFinalizedSequence {
+			err := h.DB().Delete(key)
+			prunedSequences = append(prunedSequences, sequence)
+			return false, err
+		}
+		return false, nil
+	})
+	return err
 }

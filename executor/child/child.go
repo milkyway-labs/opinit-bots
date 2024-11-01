@@ -22,6 +22,7 @@ type hostNode interface {
 	ProcessedMsgsToRawKV([]btypes.ProcessedMsgs, bool) ([]types.RawKV, error)
 	QueryLastOutput(context.Context, uint64) (*ophosttypes.QueryOutputProposalResponse, error)
 	QueryOutput(context.Context, uint64, uint64, int64) (*ophosttypes.QueryOutputProposalResponse, error)
+	UpdateLastFinalizedDepositSequence(sequence uint64)
 
 	GetMsgProposeOutput(uint64, uint64, int64, []byte) (sdk.Msg, error)
 }

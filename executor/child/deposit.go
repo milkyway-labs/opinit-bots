@@ -3,9 +3,10 @@ package child
 import (
 	"context"
 
+	"go.uber.org/zap"
+
 	nodetypes "github.com/initia-labs/opinit-bots/node/types"
 	childprovider "github.com/initia-labs/opinit-bots/provider/child"
-	"go.uber.org/zap"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
@@ -30,4 +31,5 @@ func (ch *Child) handleFinalizeDeposit(l1BlockHeight int64, l1Sequence uint64, f
 		zap.String("amount", amount.String()),
 		zap.String("base_denom", baseDenom),
 	)
+	ch.host.UpdateLastFinalizedDepositSequence(l1Sequence)
 }
