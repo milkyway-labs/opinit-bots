@@ -86,15 +86,18 @@ func (bs *BatchSubmitter) prepareBatch(blockHeight int64) error {
 	}
 
 	lastSubmittedBatchEndBlockNumber := bs.LastSubmittedBatchEndBlockNumber()
-	numChunksToPrune := lastSubmittedBatchEndBlockNumber - bs.localBatchInfo.Start + 1
+	// We haven't written the current block data yet, so we need to subtract 1 from
+	// the block height.
+	pruneTo := min(lastSubmittedBatchEndBlockNumber, blockHeight-1)
+	numChunksToPrune := pruneTo - bs.localBatchInfo.Start + 1
 	if numChunksToPrune > 0 {
 		err = bs.pruneSubmittedChunks(int(numChunksToPrune))
 		if err != nil {
 			return fmt.Errorf("prune %d submitted chunks: %w", numChunksToPrune, err)
 		}
-		bs.logger.Info("pruned submitted chunks",
+		bs.logger.Debug("pruned submitted batch chunks",
 			zap.Int64("from_height", bs.localBatchInfo.Start),
-			zap.Int64("to_height", lastSubmittedBatchEndBlockNumber))
+			zap.Int64("to_height", pruneTo))
 
 		bs.localBatchInfo.Start = lastSubmittedBatchEndBlockNumber + 1
 		fileSize, err := bs.batchFileSize(false)
@@ -214,7 +217,7 @@ func (bs *BatchSubmitter) pruneSubmittedChunks(n int) error {
 	}
 	defer w.Close()
 
-	// Copy the remaining data to the temporary file.Note that we are copying the
+	// Copy the remaining data to the temporary file. Note that we are copying the
 	// remaining data from the gzip reader to the gzip writer.
 	if _, err = io.Copy(w, r); err != nil {
 		return fmt.Errorf("copy data to temporary batch file: %w", err)

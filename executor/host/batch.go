@@ -43,8 +43,6 @@ func (h *Host) recordBatchMsgHandler(_ context.Context, msg *ophosttypes.MsgReco
 	}
 
 	h.batch.UpdateLastSubmittedBatchEndBlockNumber(int64(header.End))
-	h.Logger().Info("updated last submitted batch end block number",
-		zap.Uint64("height", header.End))
 	return nil
 }
 
