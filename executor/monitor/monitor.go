@@ -37,7 +37,7 @@ type Monitor struct {
 	operatorID   uint32
 
 	lastAdvanceEpochTime time.Time
-	isOurTurn            atomic.Bool
+	currentOperatorID    atomic.Uint32
 }
 
 func NewMonitorV1(
@@ -133,5 +133,5 @@ func (m Monitor) GetAddressStr() (string, error) {
 }
 
 func (m Monitor) IsOurTurn() bool {
-	return m.isOurTurn.Load()
+	return m.currentOperatorID.Load() == m.operatorID
 }

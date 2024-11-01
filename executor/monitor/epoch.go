@@ -34,7 +34,6 @@ func (m *Monitor) handleEpoch(ctx context.Context) error {
 	if currentEpoch.EpochEndsAt == nil ||
 		((m.lastAdvanceEpochTime.IsZero() || !blockTime.Before(nextCheckTime)) &&
 			!blockTime.Before(time.Unix(0, int64(*currentEpoch.EpochEndsAt)))) {
-		m.Logger().Info("advancing epoch")
 		err = m.advanceEpoch(ctx)
 		if err != nil {
 			return fmt.Errorf("advance epoch: %w", err)
@@ -44,14 +43,14 @@ func (m *Monitor) handleEpoch(ctx context.Context) error {
 		return nil
 	}
 
-	isOurTurnBefore := m.isOurTurn.Load()
-	isOurTurn := currentEpoch.OperatorID != nil && *currentEpoch.OperatorID == m.operatorID
-	m.isOurTurn.Store(isOurTurn)
-
-	if isOurTurnBefore != isOurTurn {
-		m.Logger().Info("turn changed",
-			zap.Bool("is_our_turn", isOurTurn),
-			zap.Int64("height", headerRes.Header.Height))
+	if currentEpoch.OperatorID != nil {
+		previousOperator := m.currentOperatorID.Swap(*currentEpoch.OperatorID)
+		if previousOperator != *currentEpoch.OperatorID {
+			m.Logger().Info("current epoch's operator changed",
+				zap.Uint32("new_operator", *currentEpoch.OperatorID),
+				zap.Bool("is_our_turn", m.IsOurTurn()),
+				zap.Int64("block_height", headerRes.Header.Height))
+		}
 	}
 	return nil
 }
