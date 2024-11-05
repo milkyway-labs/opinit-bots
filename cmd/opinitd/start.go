@@ -18,6 +18,7 @@ import (
 
 const (
 	flagPollingInterval = "polling-interval"
+	flagRetryAfter      = "retry-after"
 )
 
 func startCmd(ctx *cmdContext) *cobra.Command {
@@ -56,6 +57,11 @@ Currently supported bots:
 				return err
 			}
 			ctx = types.WithPollingInterval(ctx, interval)
+			retryAfter, err := cmd.Flags().GetDuration(flagRetryAfter)
+			if err != nil {
+				return err
+			}
+			ctx = types.WithRetryAfter(ctx, retryAfter)
 			err = bot.Initialize(ctx)
 			if err != nil {
 				return err
@@ -65,7 +71,8 @@ Currently supported bots:
 	}
 
 	cmd = configFlag(ctx.v, cmd)
-	cmd.Flags().Duration(flagPollingInterval, time.Second, "Polling interval in milliseconds")
+	cmd.Flags().Duration(flagPollingInterval, 100*time.Millisecond, "Polling interval")
+	cmd.Flags().Duration(flagRetryAfter, time.Minute, "Waiting time for a retry")
 	return cmd
 }
 

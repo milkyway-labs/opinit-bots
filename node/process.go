@@ -60,7 +60,7 @@ func (n *Node) blockProcessLooper(ctx context.Context, processType nodetypes.Blo
 				if err != nil {
 					n.logger.Error("failed to handle new block", zap.String("error", err.Error()))
 					if errors.Is(err, nodetypes.ErrIgnoreAndTryLater) {
-						sleep := time.NewTimer(time.Minute)
+						sleep := time.NewTimer(types.RetryAfter(ctx))
 						select {
 						case <-ctx.Done():
 							return nil

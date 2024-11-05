@@ -12,6 +12,7 @@ type contextKey string
 var (
 	ContextKeyErrGrp          = contextKey("ErrGrp")
 	ContextKeyPollingInterval = contextKey("PollingInterval")
+	ContextKeyRetryAfter      = contextKey("RetryAfter")
 	ContextKeyTxTimeout       = contextKey("TxTimeout")
 )
 
@@ -32,5 +33,17 @@ func PollingInterval(ctx context.Context) time.Duration {
 	if interval == nil {
 		return 100 * time.Millisecond
 	}
-	return ctx.Value(ContextKeyPollingInterval).(time.Duration)
+	return interval.(time.Duration)
+}
+
+func WithRetryAfter(ctx context.Context, duration time.Duration) context.Context {
+	return context.WithValue(ctx, ContextKeyRetryAfter, duration)
+}
+
+func RetryAfter(ctx context.Context) time.Duration {
+	duration := ctx.Value(ContextKeyRetryAfter)
+	if duration == nil {
+		return time.Minute
+	}
+	return duration.(time.Duration)
 }
